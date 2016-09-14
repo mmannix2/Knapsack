@@ -4,8 +4,7 @@
 
 #define DEBUG
 
-#define STR_SIZE 64
-#define NUM_STR 1000
+#define MAX_NUM_ITEMS 1000
 
 struct Item {
     int value;
@@ -13,9 +12,8 @@ struct Item {
 };
 
 int weight_limit = -1;
-char strings[NUM_STR][STR_SIZE];
-struct Item items[NUM_STR]; 
-int num_str = 0;
+struct Item items[MAX_NUM_ITEMS]; 
+int num_items = 0;
 
 /* Calculates the solution to the knapsack problem using a brute force approach
  * distributed over a given number of threads.
@@ -46,23 +44,20 @@ int main(int argc, char** argv) {
         int i;
         //Read in weight_limit
         fscanf(file, "%d", &weight_limit);
-        printf("Weight limit: %d\n", weight_limit);
         //Read in item values and weights
         for(i=0; !feof(file); i++) {
-        /*
-            fscanf(file, "%s", strings[i]);
-            printf("%s\n", strings[i]);
-        */  
             fscanf(file,"%d %d", &items[i].value, &items[i].weight);
-            printf("v=%d w=%d\n", items[i].value, items[i].weight);
         }
-        num_str = i-1;
+        num_items = i-1;
     }
-    
+   
+    #ifdef DEBUG
+    printf("Weight limit: %d\n", weight_limit);
     printf("Items:\n");
-    for(int i=0; i<num_str; i++) {
+    for(int i=0; i<num_items; i++) {
         printf("\tItem #%d, v=%d w=%d\n", i, items[i].value, items[i].weight);
     }
-    
+    #endif
+
     return 0;
 }
