@@ -16,6 +16,8 @@ int weight_limit = -1;
 struct Item items[MAX_NUM_ITEMS]; 
 int num_items = -1;  //Number of Items
 unsigned int num_combos = 0; //2^(num_items)
+int num_threads = 1;
+int combos_per_thread = -1;
 
 /* Calculates the value of one set of items
  * Returns the value of the items if the weight does not exceed weight_limit.
@@ -24,7 +26,7 @@ unsigned int num_combos = 0; //2^(num_items)
  * NOTE: weight_limit must be given a value before this is called!
  */
 int calcvalue(unsigned int combination, int* value) {
-    if(combination >= num_combos) {
+    if(combination > num_combos) {
         return -1;
     }
     else {
@@ -42,6 +44,28 @@ int calcvalue(unsigned int combination, int* value) {
     }
 }
 
+void* try_combos(void* idp) {
+    int id = * (int*) idp;
+    int* highest_value = malloc(sizeof(int));
+    *highest_value = 0;
+
+    printf("Thread #%d!\n", id);
+
+    int temp = -1;
+    for(unsigned int i = (combos_per_thread*id) + id; 
+        i <= (combos_per_thread*id+id)+combos_per_thread;
+        i++) {
+        calcvalue(i, &temp);
+        printf("\tCombo: %u Value: %d\n", i, items[i].value);
+        if(temp > *highest_value) {
+            printf("\tCombo %u is highest! Value: %d\n", i, temp);
+            highest_value = &temp;
+        }
+    }
+    
+    pthread_exit(highest_value);
+}
+
 /* Calculates the solution to the knapsack problem using a brute force approach
  * distributed over a given number of threads.
  * Returns 0 on successful completion.
@@ -49,6 +73,7 @@ int calcvalue(unsigned int combination, int* value) {
  * Returns 1 if the given file cannot be opened.
  */
 int main(int argc, char** argv) {
+    /*** INITIALIZATION/SETUP ***/
     //Make sure there are exactly 3 arguments
     if(argc != 3) {
         printf("ERROR: Invalid number of arguments.\n");
@@ -80,16 +105,39 @@ int main(int argc, char** argv) {
         for(int i = 0; i < num_items; i++) {
             num_combos *= 2; 
         }
+        num_combos--;
     }
+    
+    //Get num_threads from cmd line arg
+    num_threads = atoi(argv[2]);
+    combos_per_thread = num_combos/num_threads;
     
     printf("Number of items: %d\n", num_items);
     printf("Number of combinations: %u\n", num_combos);
+    printf("\nUsing %d threads with %u combinations per thread.\n",
+        num_threads, combos_per_thread); 
     
-    int v = 0;
-    for(unsigned int i = 0; i < num_combos; i++) {
-        calcvalue(i, &v);
-        printf("Combo: %u Value: %d\n", i, v);
+    pthread_t threads[num_threads];
+    int ids[num_threads];
+    
+    //Spawn all the threads
+    for(int i=0; i<num_threads; i++) {
+        ids[i] = i;
+        pthread_create(&threads[i], NULL, try_combos, &ids[i]);
+    }
+    
+    //Join all threads
+    int highest_value = 0;
+    for(int i=0; i<num_threads; i++) {
+        int* thread_highest;
+        pthread_join(threads[i], (void**) &thread_highest);
+        if(*thread_highest > highest_value) {
+            highest_value = *thread_highest;
+        }
+        free(thread_highest);
     }
 
-    return 0;
+    printf("Highest Value: %d\n", highest_value);
+    
+    pthread_exit(NULL);
 }
