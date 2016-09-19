@@ -5,7 +5,7 @@
 
 #define DEBUG
 
-#define MAX_NUM_ITEMS 32 //Max of 32 Items because 2^32 = UINT_MAX
+#define MAX_NUM_ITEMS 31 //Max of 31 Items because (2^32)-1 = UINT_MAX
 
 struct Item {
     int value;
@@ -19,14 +19,21 @@ unsigned int num_combos = 0; //2^(num_items)
 int num_threads = 1;
 int combos_per_thread = -1;
 
+pthread_mutex_t mutex;
+
 /* Calculates the value of one set of items
  * Returns the value of the items if the weight does not exceed weight_limit.
  * Returns -1 if the given combination is not valid for the Item set.
+ * Returns -2 if the given combination exceeds weight_limit.
  *
  * NOTE: weight_limit must be given a value before this is called!
  */
 int calcvalue(unsigned int combination, int* value) {
-    if(combination > num_combos) {
+    int weight = 0;
+    
+    printf("Combo: %u\n", combination);
+
+    if(combination >= num_combos) {
         return -1;
     }
     else {
@@ -36,10 +43,18 @@ int calcvalue(unsigned int combination, int* value) {
             //printf("\tCombo: %u Bit: %d\n", combination, combination % 2);
             if(combination % 2 != 0) {
                 *value += items[i].value;
+                weight += items[i].weight;
             }
             combination >>= 1;
         }
-        //printf("Items done. value: %d\n", *value);
+        printf("\tItems done. value: %d <= %d: %d\n", *value, weight_limit,
+            weight <= weight_limit);
+        if(weight > weight_limit) {
+            //printf("\tItems exceed weight_limit. Value = -1\n");
+            *value = -1;
+            return -2;
+        }
+        
         return 0;
     }
 }
@@ -47,23 +62,26 @@ int calcvalue(unsigned int combination, int* value) {
 void* try_combos(void* idp) {
     int id = * (int*) idp;
     int* highest_value = malloc(sizeof(int));
-    *highest_value = 0;
+    //*highest_value = 0;
 
-    printf("Thread #%d!\n", id);
-
+    //printf("Thread #%d!\n", id);
+    //printf("\tStart: %10u, \tEnd: %10u\n", combos_per_thread*id,
+    //    combos_per_thread*id + combos_per_thread -1);
     int temp = -1;
-    for(unsigned int i = (combos_per_thread*id) + id; 
-        i <= (combos_per_thread*id+id)+combos_per_thread;
+    for(unsigned int i = combos_per_thread*id; 
+        i < (combos_per_thread*id)+combos_per_thread;
         i++) {
+        pthread_mutex_lock(&mutex);
         calcvalue(i, &temp);
-        printf("\tCombo: %u Value: %d\n", i, items[i].value);
+        //printf("\tCombo: %u Value: %d\n", i, temp);
+        pthread_mutex_unlock(&mutex);
         if(temp > *highest_value) {
             printf("\tCombo %u is highest! Value: %d\n", i, temp);
-            highest_value = &temp;
+            *highest_value = temp;
         }
     }
     
-    pthread_exit(highest_value);
+    pthread_exit((void*) highest_value);
 }
 
 /* Calculates the solution to the knapsack problem using a brute force approach
@@ -105,7 +123,6 @@ int main(int argc, char** argv) {
         for(int i = 0; i < num_items; i++) {
             num_combos *= 2; 
         }
-        num_combos--;
     }
     
     //Get num_threads from cmd line arg
@@ -119,7 +136,8 @@ int main(int argc, char** argv) {
     
     pthread_t threads[num_threads];
     int ids[num_threads];
-    
+    pthread_mutex_init(&mutex, NULL);
+
     //Spawn all the threads
     for(int i=0; i<num_threads; i++) {
         ids[i] = i;
@@ -129,12 +147,12 @@ int main(int argc, char** argv) {
     //Join all threads
     int highest_value = 0;
     for(int i=0; i<num_threads; i++) {
-        int* thread_highest;
+        int* thread_highest = (int*)malloc(sizeof(int));
         pthread_join(threads[i], (void**) &thread_highest);
+        printf("thread_highest: %d\n", *thread_highest);
         if(*thread_highest > highest_value) {
             highest_value = *thread_highest;
         }
-        free(thread_highest);
     }
 
     printf("Highest Value: %d\n", highest_value);
