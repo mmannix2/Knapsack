@@ -31,26 +31,21 @@ pthread_mutex_t mutex;
 int calcvalue(unsigned int combination, int* value) {
     int weight = 0;
     
-    printf("Combo: %u\n", combination);
-
     if(combination >= num_combos) {
         return -1;
     }
     else {
         *value = 0;
         for(int i = 0; i < num_items; i++) {
-            //printf("\tItem #%d, value: %d\n", i, items[i].value);
-            //printf("\tCombo: %u Bit: %d\n", combination, combination % 2);
             if(combination % 2 != 0) {
                 *value += items[i].value;
                 weight += items[i].weight;
             }
             combination >>= 1;
         }
-        printf("\tItems done. value: %d <= %d: %d\n", *value, weight_limit,
-            weight <= weight_limit);
+        //printf("\tItems done. value: %d <= %d: %d\n", *value, weight_limit,
+        //    weight <= weight_limit);
         if(weight > weight_limit) {
-            //printf("\tItems exceed weight_limit. Value = -1\n");
             *value = -1;
             return -2;
         }
@@ -62,21 +57,16 @@ int calcvalue(unsigned int combination, int* value) {
 void* try_combos(void* idp) {
     int id = * (int*) idp;
     int* highest_value = malloc(sizeof(int));
-    //*highest_value = 0;
-
-    //printf("Thread #%d!\n", id);
-    //printf("\tStart: %10u, \tEnd: %10u\n", combos_per_thread*id,
-    //    combos_per_thread*id + combos_per_thread -1);
     int temp = -1;
+    
     for(unsigned int i = combos_per_thread*id; 
         i < (combos_per_thread*id)+combos_per_thread;
         i++) {
-        pthread_mutex_lock(&mutex);
         calcvalue(i, &temp);
-        //printf("\tCombo: %u Value: %d\n", i, temp);
-        pthread_mutex_unlock(&mutex);
         if(temp > *highest_value) {
+            #ifdef DEBUG
             printf("\tCombo %u is highest! Value: %d\n", i, temp);
+            #endif
             *highest_value = temp;
         }
     }
@@ -129,8 +119,10 @@ int main(int argc, char** argv) {
     num_threads = atoi(argv[2]);
     combos_per_thread = num_combos/num_threads;
     
+    #ifdef DEBUG
     printf("Number of items: %d\n", num_items);
     printf("Number of combinations: %u\n", num_combos);
+    #endif
     printf("\nUsing %d threads with %u combinations per thread.\n",
         num_threads, combos_per_thread); 
     
@@ -149,7 +141,6 @@ int main(int argc, char** argv) {
     for(int i=0; i<num_threads; i++) {
         int* thread_highest = (int*)malloc(sizeof(int));
         pthread_join(threads[i], (void**) &thread_highest);
-        printf("thread_highest: %d\n", *thread_highest);
         if(*thread_highest > highest_value) {
             highest_value = *thread_highest;
         }
