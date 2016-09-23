@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
         fscanf(file, "%d", &weight_limit);
         //Read in item values and weights
         for(i=0; !feof(file); i++) {
-            fscanf(file,"%d %d", &items[i].value, &items[i].weight);
+            fscanf(file,"%d %d", &items[i].weight, &items[i].value);
         }
         num_items = i-1;
         num_combos = 0b1;
