@@ -3,8 +3,6 @@
 #include <pthread.h>
 #include <limits.h>
 
-//#define DEBUG
-
 #define MAX_NUM_ITEMS 31 //Max of 31 Items because (2^32)-1 = UINT_MAX
 
 //  Represents an Item from the input file. Each Item has a weight and a value.
@@ -32,8 +30,6 @@ int num_items = -1;  //Number of Items
 unsigned int num_combos = 0; //2^(num_items)
 int num_threads = 1;
 int combos_per_thread = -1;
-
-//pthread_mutex_t mutex;
 
 /* Calculates the value of one set of items
  * Returns the value of the items if the weight does not exceed weight_limit.
@@ -135,13 +131,12 @@ int main(int argc, char** argv) {
     #ifdef DEBUG
     printf("Number of items: %d\n", num_items);
     printf("Number of combinations: %u\n", num_combos);
-    #endif
     printf("\nUsing %d threads with %u combinations per thread.\n",
         num_threads, combos_per_thread); 
+    #endif
     
     pthread_t threads[num_threads];
     int ids[num_threads];
-    //pthread_mutex_init(&mutex, NULL);
 
     //Spawn all the threads
     for(int i=0; i<num_threads; i++) {
@@ -149,12 +144,11 @@ int main(int argc, char** argv) {
         pthread_create(&threads[i], NULL, try_combos, &ids[i]);
     }
     
-    //Join all threads
+    //Initialize struct Combination
     struct Combination best;
-    best.number = -1;
-    best.value = -1;
-    best.weight = -1;
+    best.value = -1; //Dummy value
     
+    //Join all threads
     for(int i=0; i<num_threads; i++) {
         struct Combination* thread_best = (struct Combination*)malloc(
             sizeof(struct Combination) );
@@ -164,10 +158,11 @@ int main(int argc, char** argv) {
             best.value = thread_best->value;
             best.weight = thread_best->weight;
         }
-
+        
         free(thread_best);
     }
-
+    
+    //Final output
     printf("Best Value:\n\tCombination: 0x%X\n\tValue: %d\n\tWeight: %d\n",
             best.number,
             best.value,
