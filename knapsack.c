@@ -7,9 +7,23 @@
 
 #define MAX_NUM_ITEMS 31 //Max of 31 Items because (2^32)-1 = UINT_MAX
 
+//  Represents an Item from the input file. Each Item has a weight and a value.
 struct Item {
     int value;
     int weight;
+};
+
+/*  Represents a selection of Items. Because creating 2^(num_items) structs
+    would be costly, I only create one struct Combination for each thread that
+    holds and returns the best value Combination that thread has encountered.*/
+struct Combination {
+    unsigned int number; /* An int holding a binary representation of which 
+                            Items are included in this Combination.
+                            For example:
+                            A combination with number 8 includes Items 1 and 3.
+                            8 = 0b101 */
+    int value;  //Sum of values for this Combination
+    int weight; //Sum of weight for this Combination
 };
 
 int weight_limit = -1;
@@ -19,7 +33,7 @@ unsigned int num_combos = 0; //2^(num_items)
 int num_threads = 1;
 int combos_per_thread = -1;
 
-pthread_mutex_t mutex;
+//pthread_mutex_t mutex;
 
 /* Calculates the value of one set of items
  * Returns the value of the items if the weight does not exceed weight_limit.
@@ -28,50 +42,49 @@ pthread_mutex_t mutex;
  *
  * NOTE: weight_limit must be given a value before this is called!
  */
-int calcvalue(unsigned int combination, int* value) {
-    int weight = 0;
-    
+int calc_combo(unsigned int combination, int* value, int* weight) {
     if(combination >= num_combos) {
         return -1;
     }
     else {
         *value = 0;
+        *weight = 0;
+        
         for(int i = 0; i < num_items; i++) {
             if(combination % 2 != 0) {
                 *value += items[i].value;
-                weight += items[i].weight;
+                *weight += items[i].weight;
             }
             combination >>= 1;
         }
-        //printf("\tItems done. value: %d <= %d: %d\n", *value, weight_limit,
-        //    weight <= weight_limit);
-        if(weight > weight_limit) {
-            *value = -1;
+        if(*weight > weight_limit) {
             return -2;
         }
-        
+        //This combination is within the weight limit 
         return 0;
     }
 }
 
 void* try_combos(void* idp) {
     int id = * (int*) idp;
-    int* highest_value = malloc(sizeof(int));
-    int temp = -1;
-    
+    struct Combination* best = malloc(sizeof(struct Combination));
+    best->value = -1;
+    best->weight = -1;
+    int temp_value = -1;
+    int temp_weight = -1;
+
     for(unsigned int i = combos_per_thread*id; 
         i < (combos_per_thread*id)+combos_per_thread;
         i++) {
-        calcvalue(i, &temp);
-        if(temp > *highest_value) {
-            #ifdef DEBUG
-            printf("\tCombo %u is highest! Value: %d\n", i, temp);
-            #endif
-            *highest_value = temp;
+        if( calc_combo(i, &temp_value, &temp_weight) == 0 && 
+            temp_value > best->value ) {
+            best->number = i;
+            best->value = temp_value;
+            best->weight = temp_weight;
         }
     }
     
-    pthread_exit((void*) highest_value);
+    pthread_exit((void*) best);
 }
 
 /* Calculates the solution to the knapsack problem using a brute force approach
@@ -128,7 +141,7 @@ int main(int argc, char** argv) {
     
     pthread_t threads[num_threads];
     int ids[num_threads];
-    pthread_mutex_init(&mutex, NULL);
+    //pthread_mutex_init(&mutex, NULL);
 
     //Spawn all the threads
     for(int i=0; i<num_threads; i++) {
@@ -137,16 +150,28 @@ int main(int argc, char** argv) {
     }
     
     //Join all threads
-    int highest_value = 0;
+    struct Combination best;
+    best.number = -1;
+    best.value = -1;
+    best.weight = -1;
+    
     for(int i=0; i<num_threads; i++) {
-        int* thread_highest = (int*)malloc(sizeof(int));
-        pthread_join(threads[i], (void**) &thread_highest);
-        if(*thread_highest > highest_value) {
-            highest_value = *thread_highest;
+        struct Combination* thread_best = (struct Combination*)malloc(
+            sizeof(struct Combination) );
+        pthread_join(threads[i], (void**) &thread_best);
+        if(thread_best->value > best.value) {
+            best.number = thread_best->number;
+            best.value = thread_best->value;
+            best.weight = thread_best->weight;
         }
+
+        free(thread_best);
     }
 
-    printf("Highest Value: %d\n", highest_value);
+    printf("Best Value:\n\tCombination: 0x%X\n\tValue: %d\n\tWeight: %d\n",
+            best.number,
+            best.value,
+            best.weight );
     
     pthread_exit(NULL);
 }
