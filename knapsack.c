@@ -3,7 +3,7 @@
 #include <pthread.h>
 #include <limits.h>
 
-#define DEBUG
+//#define DEBUG
 
 #define MAX_NUM_ITEMS 31 //Max of 31 Items because (2^32)-1 = UINT_MAX
 
